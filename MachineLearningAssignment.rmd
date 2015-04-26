@@ -1,0 +1,122 @@
+---
+title: "Machine Learning Assignment"
+author: "Naresh"
+date: "Monday, April 27, 2015"
+output: html_document
+---
+
+###Background
+
+Using devices such as Jawbone Up, Nike FuelBand, and Fitbit it is now possible to collect a large amount of data about personal activity relatively inexpensively. These type of devices are part of the quantified self movement - a group of enthusiasts who take measurements about themselves regularly to improve their health, to find patterns in their behavior, or because they are tech geeks. One thing that people regularly do is quantify how much of a particular activity they do, but they rarely quantify how well they do it. In this project, your goal will be to use data from accelerometers on the belt, forearm, arm, and dumbell of 6 participants. They were asked to perform barbell lifts correctly and incorrectly in 5 different ways. More information is available from the website here: http://groupware.les.inf.puc-rio.br/har (see the section on the Weight Lifting Exercise Dataset).
+
+##Analysis and Prediction
+
+####Preprocessing and PCA
+
+First of all, let's include all the nesessary libraries and set seed for reproducibility:
+
+```{r}
+set.seed(12345)
+library(rpart)
+library(ggplot2)
+library(caret)
+```
+
+
+```{r}
+library(rattle)
+```
+
+Reading CSV Data
+```{r}
+trainSet  = read.csv("hw_data.csv", na.strings=c("", "NA", "NULL"))
+testSet  = read.csv("pml-testing.csv", na.strings=c("", "NA", "NULL"))
+```
+
+Get rid of NA's
+
+```{r}
+trainSet<-trainSet[,colSums(is.na(trainSet))==0]
+testSet<-testSet[,colSums(is.na(testSet))==0]
+```
+
+Here are the plots, where we can see near proportion between classes A-D:
+
+```{r}
+ggplot(data=trainSet)+geom_bar(aes(classe))+facet_grid(.~user_name)
+```
+
+By going through http://groupware.les.inf.puc-rio.br/har it is clear that the first 7 columns are not predictors
+
+```{r}
+trainSet<-trainSet[,-c(1:7)]
+testSet<-testSet[,-c(1:7)]
+```
+
+###Cross-Validation
+
+Create Data Partition for Training(75%) and Testing (25%)
+
+```{r}
+partition<-createDataPartition(y=trainSet$classe,p=0.75,list=FALSE)
+training<-trainSet[partition,]
+testing<-trainSet[-partition,]
+rm(partition)
+dim(training)
+```
+
+Checking near zero variances
+
+```{r}
+sum(nearZeroVar(training,saveMetrics=TRUE)$nzv)
+```
+
+As the nearZeroVar is 0, all the variables could be helpful in predicting
+
+Calculating correlations between variables
+
+```{r}
+corMatrix<-abs(cor(training[,-53]))
+length(which(corMatrix>0.9,arr.ind=T))
+```
+
+We can see there are a lot of correlation between variables, and it shouls be so, as total acceleration depends on, for example, z acceleration. But, the number of variables is not too high, so we will not use principal component analysis. Also, PCA is very useful in linear dependencies, and that is not our case.Firstly, we will try predicting with trees, as we have a lot of predictors
+
+###Predicting with Classification Tree
+
+```{r}
+##modFit<-train(classe~.,method="rpart",data=training)
+fancyRpartPlot(modFit$finalModel)
+```
+
+###Confusion matrix for the fit to check accuracy
+
+```{r}
+predictions<-predict(modFit, testing)
+confusionMatrix(predictions, testing$classe)$overall["Accuracy"]
+```
+
+Accuracy is too low to go with.  Classification tree does not help in this case.
+
+###Predicting with RANDOM FOREST
+
+```{r}
+##modFit2<-train(classe ~ ., data = training, method = "rf",
+               trControl=trainControl(method="oob"))
+```
+
+```{r}
+predictions2<-predict(modFit2, testing)
+confusionMatrix(predictions2, testing$classe)$overall["Accuracy"]
+```
+
+More than 99% accuracy. Random Forest algoritm gives much better result. the accuracy in this case, the aim of the assignment.
+
+
+You can also embed plots, for example:
+
+```{r, echo=FALSE}
+plot(cars)
+```
+
+Note that the `echo = FALSE` parameter was added to the code chunk to prevent printing of the R code that generated the plot.
